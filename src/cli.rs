@@ -24,6 +24,9 @@ pub enum Command {
     /// List and query the built-in engine registry
     #[command(subcommand)]
     Engines(EnginesCommand),
+
+    /// Manage the CLI configuration file (default: show current settings)
+    Config(ConfigArgs),
 }
 
 // ---------------------------------------------------------------------------
@@ -126,4 +129,35 @@ pub struct EnginesListArgs {
 pub struct EnginesShowArgs {
     /// Engine name (e.g. virustotal).
     pub name: String,
+}
+
+// ---------------------------------------------------------------------------
+// config subcommands
+// ---------------------------------------------------------------------------
+
+/// Wraps the optional config subcommand so that bare `cyberbro config`
+/// (no subcommand) defaults to `show` instead of printing help.
+#[derive(Args, Debug)]
+pub struct ConfigArgs {
+    #[command(subcommand)]
+    pub command: Option<ConfigSubcommand>,
+}
+
+#[derive(Subcommand, Debug)]
+pub enum ConfigSubcommand {
+    /// Print the current configuration (file path and all values).
+    Show,
+    /// Interactively create the configuration file with prompted or default values.
+    Init(InitArgs),
+}
+
+#[derive(Args, Debug)]
+pub struct InitArgs {
+    /// Write config with default values without prompting (useful for CI/scripting).
+    #[arg(long)]
+    pub defaults: bool,
+
+    /// Overwrite an existing config file without asking.
+    #[arg(long)]
+    pub force: bool,
 }

@@ -11,7 +11,7 @@ use colored::Colorize;
 use comfy_table::{Cell, ContentArrangement, Table};
 use indicatif::{ProgressBar, ProgressStyle};
 
-use cli::{Cli, Command, EnginesCommand};
+use cli::{Cli, Command, ConfigArgs, ConfigSubcommand, EnginesCommand};
 use config::Config;
 use engines::{find_engine, resolve_engines, unknown_engines, ALL_ENGINES};
 use error::CyberbroError;
@@ -31,6 +31,7 @@ async fn main() {
 async fn run(cli: Cli) -> error::Result<()> {
     match cli.command {
         Command::Engines(sub) => run_engines(sub),
+        Command::Config(sub) => run_config(sub),
         Command::Analyze(args) => run_analyze(args).await,
     }
 }
@@ -104,6 +105,137 @@ fn run_engines(cmd: EnginesCommand) -> error::Result<()> {
             println!();
         }
     }
+
+    Ok(())
+}
+
+// ---------------------------------------------------------------------------
+// config subcommand
+// ---------------------------------------------------------------------------
+
+fn run_config(args: ConfigArgs) -> error::Result<()> {
+    match args.command {
+        Some(ConfigSubcommand::Init(init_args)) => run_config_init(init_args),
+        Some(ConfigSubcommand::Show) | None => run_config_show(),
+    }
+}
+
+fn run_config_show() -> error::Result<()> {
+    let cfg = Config::load()?;
+    let path = config::config_file_path();
+
+    println!();
+    println!(
+        "  Config file:      {}",
+        match &path {
+            Some(p) if p.exists() => p.display().to_string().green().to_string(),
+            Some(p) => format!("{} (not found — using defaults)", p.display())
+                .yellow()
+                .to_string(),
+            None => "(cannot determine path)".yellow().to_string(),
+        }
+    );
+    println!("  server:           {}", cfg.server);
+    println!("  api_prefix:       {}", cfg.api_prefix);
+    println!("  timeout:          {}s", cfg.timeout_secs);
+    println!("  poll_interval:    {}s", cfg.poll_interval_secs);
+    println!("  verify_tls:       {}", cfg.verify_tls);
+    let engines = if cfg.default_engines.is_empty() {
+        "(none — use server defaults)".dimmed().to_string()
+    } else {
+        cfg.default_engines.join(", ")
+    };
+    println!("  default_engines:  {}", engines);
+    println!();
+
+    Ok(())
+}
+
+fn run_config_init(args: cli::InitArgs) -> error::Result<()> {
+    use config::ConfigFile;
+    use dialoguer::{Confirm, Input};
+
+    // Check for an existing config file and refuse unless --force.
+    if let Some(path) = config::config_file_path() {
+        if path.exists() && !args.force {
+            println!(
+                "Config file already exists at {}",
+                path.display()
+            );
+            println!("Use --force to overwrite it.");
+            return Ok(());
+        }
+    }
+
+    // Build a ConfigFile, either from defaults or by prompting the user.
+    let cfg = if args.defaults {
+        // Non-interactive: use compile-time defaults directly.
+        ConfigFile {
+            server: Some("http://localhost:5000".into()),
+            api_prefix: Some("api".into()),
+            timeout: Some(120),
+            poll_interval: Some(2),
+            verify_tls: Some(true),
+            default_engines: Some(vec![]),
+        }
+    } else {
+        // Interactive: prompt for each value, showing the default.
+        // dialoguer handles the case where stdout is not a TTY by
+        // returning the default value automatically.
+
+        let server: String = Input::new()
+            .with_prompt("Cyberbro server URL")
+            .default("http://localhost:5000".into())
+            .interact_text()?;
+
+        let api_prefix: String = Input::new()
+            .with_prompt("API path prefix")
+            .default("api".into())
+            .interact_text()?;
+
+        let timeout: u64 = Input::new()
+            .with_prompt("Request timeout (seconds)")
+            .default(120)
+            .interact_text()?;
+
+        let poll_interval: u64 = Input::new()
+            .with_prompt("Polling interval (seconds)")
+            .default(2)
+            .interact_text()?;
+
+        let verify_tls: bool = Confirm::new()
+            .with_prompt("Verify TLS certificates?")
+            .default(true)
+            .interact()?;
+
+        let engines_raw: String = Input::new()
+            .with_prompt("Default engines, comma-separated (blank for none)")
+            .default(String::new())
+            .allow_empty(true)
+            .interact_text()?;
+
+        let default_engines: Vec<String> = if engines_raw.trim().is_empty() {
+            vec![]
+        } else {
+            engines_raw
+                .split(',')
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty())
+                .collect()
+        };
+
+        ConfigFile {
+            server: Some(server),
+            api_prefix: Some(api_prefix),
+            timeout: Some(timeout),
+            poll_interval: Some(poll_interval),
+            verify_tls: Some(verify_tls),
+            default_engines: Some(default_engines),
+        }
+    };
+
+    let path = config::write_config_file(&cfg)?;
+    println!("Config written to {}", path.display());
 
     Ok(())
 }

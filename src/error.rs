@@ -22,6 +22,9 @@ pub enum CyberbroError {
 
     #[error("I/O error: {0}")]
     IoError(#[from] std::io::Error),
+
+    #[error("Prompt error: {0}")]
+    PromptError(#[from] dialoguer::Error),
 }
 
 pub type Result<T> = std::result::Result<T, CyberbroError>;
