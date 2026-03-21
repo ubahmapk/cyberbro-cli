@@ -25,11 +25,11 @@ impl OutputFormat {
 // Public entry point
 // ---------------------------------------------------------------------------
 
-pub fn render(results: &[Value], format: &OutputFormat, no_color: bool) {
+pub fn render(results: &[Value], format: &OutputFormat, no_color: bool, results_url: &str) {
     match format {
-        OutputFormat::Json => render_json(results),
-        OutputFormat::Csv => render_csv(results),
-        OutputFormat::Table => render_table(results, no_color),
+        OutputFormat::Json => render_json(results, results_url),
+        OutputFormat::Csv => render_csv(results, results_url),
+        OutputFormat::Table => render_table(results, no_color, results_url),
     }
 }
 
@@ -37,20 +37,28 @@ pub fn render(results: &[Value], format: &OutputFormat, no_color: bool) {
 // JSON output
 // ---------------------------------------------------------------------------
 
-fn render_json(results: &[Value]) {
-    println!("{}", serde_json::to_string_pretty(results).unwrap_or_default());
+fn render_json(results: &[Value], results_url: &str) {
+    let output = serde_json::json!({
+        "results_url": results_url,
+        "results": results,
+    });
+    println!("{}", serde_json::to_string_pretty(&output).unwrap_or_default());
 }
 
 // ---------------------------------------------------------------------------
 // CSV output — flat key=value per observable
 // ---------------------------------------------------------------------------
 
-fn render_csv(results: &[Value]) {
+fn render_csv(results: &[Value], results_url: &str) {
     let mut rows: Vec<std::collections::BTreeMap<String, String>> = Vec::new();
     let mut all_keys: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
 
+    // Seed the key set with results_url so it always appears as the first column.
+    all_keys.insert("results_url".into());
+
     for result in results {
-        let row = flatten_result(result);
+        let mut row = flatten_result(result);
+        row.insert("results_url".into(), results_url.to_string());
         all_keys.extend(row.keys().cloned());
         rows.push(row);
     }
@@ -117,7 +125,7 @@ fn value_to_string(v: &Value) -> String {
 // Table output
 // ---------------------------------------------------------------------------
 
-fn render_table(results: &[Value], no_color: bool) {
+fn render_table(results: &[Value], no_color: bool, results_url: &str) {
     for result in results {
         let observable = result
             .get("observable")
@@ -173,6 +181,15 @@ fn render_table(results: &[Value], no_color: bool) {
         }
 
         println!("{table}");
+    }
+
+    // Footer: link to the full results page on the server.
+    println!();
+    println!("{}", "─".repeat(72));
+    if no_color {
+        println!("Results URL: {}", results_url);
+    } else {
+        println!("Results URL: {}", results_url.cyan());
     }
 }
 

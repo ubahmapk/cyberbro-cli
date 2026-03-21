@@ -24,6 +24,14 @@ pub struct CompleteResponse {
     pub complete: bool,
 }
 
+/// Holds the outcome of a completed analysis submission.
+pub struct AnalysisOutcome {
+    pub analysis_id: String,
+    /// The URL to the results page on the Cyberbro web UI.
+    pub results_url: String,
+    pub results: Vec<serde_json::Value>,
+}
+
 // ---------------------------------------------------------------------------
 // Client
 // ---------------------------------------------------------------------------
@@ -125,9 +133,10 @@ impl CyberbroClient {
         timeout_secs: u64,
         poll_interval_secs: u64,
         on_tick: impl Fn(),
-    ) -> Result<(String, Vec<serde_json::Value>)> {
+    ) -> Result<AnalysisOutcome> {
         let submission = self.submit(text, engines, ignore_cache).await?;
         let analysis_id = submission.analysis_id.clone();
+        let results_url = submission.link.clone();
 
         let deadline = std::time::Instant::now()
             + std::time::Duration::from_secs(timeout_secs);
@@ -146,6 +155,6 @@ impl CyberbroClient {
         }
 
         let results = self.get_results(&analysis_id).await?;
-        Ok((analysis_id, results))
+        Ok(AnalysisOutcome { analysis_id, results_url, results })
     }
 }

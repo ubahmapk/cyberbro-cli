@@ -379,7 +379,7 @@ async fn run_analyze(args: cli::AnalyzeArgs) -> error::Result<()> {
     };
 
     let spinner_ref = &spinner;
-    let (analysis_id, result_data) = http
+    let client::AnalysisOutcome { analysis_id, results_url, results: result_data } = http
         .analyze_and_wait(
             &text,
             &final_engines,
@@ -403,7 +403,7 @@ async fn run_analyze(args: cli::AnalyzeArgs) -> error::Result<()> {
     }
 
     // --- Render results ---
-    render(&result_data, &fmt, args.no_color);
+    render(&result_data, &fmt, args.no_color, &results_url);
 
     Ok(())
 }
