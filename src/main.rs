@@ -403,7 +403,18 @@ async fn run_analyze(args: cli::AnalyzeArgs) -> error::Result<()> {
     }
 
     // --- Render results ---
-    render(&result_data, &fmt, args.no_color, &results_url);
+    // If --output-file was given, write to that file; otherwise write to stdout.
+    // BufWriter batches small writes for efficiency, which matters especially
+    // for CSV/table output with many rows.
+    if let Some(path) = &args.output_file {
+        let file = std::fs::File::create(path)?;
+        let mut writer = std::io::BufWriter::new(file);
+        render(&result_data, &fmt, args.no_color, &results_url, &mut writer);
+    } else {
+        let stdout = std::io::stdout();
+        let mut writer = std::io::BufWriter::new(stdout.lock());
+        render(&result_data, &fmt, args.no_color, &results_url, &mut writer);
+    }
 
     Ok(())
 }

@@ -66,6 +66,11 @@ pub struct AnalyzeArgs {
     #[arg(short, long, default_value = "table", value_name = "FORMAT")]
     pub output: String,
 
+    /// Save the report to a file (env: CYBERBRO_OUTPUT_FILE).
+    /// The file is written in the format selected by --output.
+    #[arg(long, value_name = "PATH", env = "CYBERBRO_OUTPUT_FILE")]
+    pub output_file: Option<std::path::PathBuf>,
+
     /// Bypass server-side cache and force a fresh analysis.
     #[arg(long)]
     pub ignore_cache: bool,

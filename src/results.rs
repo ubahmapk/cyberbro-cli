@@ -1,6 +1,7 @@
 use colored::Colorize;
 use comfy_table::{Cell, CellAlignment, Color, ContentArrangement, Table};
 use serde_json::Value;
+use std::io::Write;
 
 /// Output format requested by the user.
 #[derive(Debug, Clone, PartialEq)]
@@ -25,11 +26,11 @@ impl OutputFormat {
 // Public entry point
 // ---------------------------------------------------------------------------
 
-pub fn render(results: &[Value], format: &OutputFormat, no_color: bool, results_url: &str) {
+pub fn render(results: &[Value], format: &OutputFormat, no_color: bool, results_url: &str, writer: &mut dyn Write) {
     match format {
-        OutputFormat::Json => render_json(results, results_url),
-        OutputFormat::Csv => render_csv(results, results_url),
-        OutputFormat::Table => render_table(results, no_color, results_url),
+        OutputFormat::Json => render_json(results, results_url, writer),
+        OutputFormat::Csv => render_csv(results, results_url, writer),
+        OutputFormat::Table => render_table(results, no_color, results_url, writer),
     }
 }
 
@@ -37,19 +38,19 @@ pub fn render(results: &[Value], format: &OutputFormat, no_color: bool, results_
 // JSON output
 // ---------------------------------------------------------------------------
 
-fn render_json(results: &[Value], results_url: &str) {
+fn render_json(results: &[Value], results_url: &str, writer: &mut dyn Write) {
     let output = serde_json::json!({
         "results_url": results_url,
         "results": results,
     });
-    println!("{}", serde_json::to_string_pretty(&output).unwrap_or_default());
+    writeln!(writer, "{}", serde_json::to_string_pretty(&output).unwrap_or_default()).ok();
 }
 
 // ---------------------------------------------------------------------------
 // CSV output — flat key=value per observable
 // ---------------------------------------------------------------------------
 
-fn render_csv(results: &[Value], results_url: &str) {
+fn render_csv(results: &[Value], results_url: &str, writer: &mut dyn Write) {
     let mut rows: Vec<std::collections::BTreeMap<String, String>> = Vec::new();
     let mut all_keys: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
 
@@ -65,7 +66,7 @@ fn render_csv(results: &[Value], results_url: &str) {
 
     // Header
     let headers: Vec<&str> = all_keys.iter().map(|s| s.as_str()).collect();
-    println!("{}", headers.join(";"));
+    writeln!(writer, "{}", headers.join(";")).ok();
 
     // Rows
     for row in &rows {
@@ -74,7 +75,7 @@ fn render_csv(results: &[Value], results_url: &str) {
             .map(|k| row.get(k).cloned().unwrap_or_default())
             .map(|v| format!("\"{}\"", v.replace('"', "\"\"")))
             .collect();
-        println!("{}", values.join(";"));
+        writeln!(writer, "{}", values.join(";")).ok();
     }
 }
 
@@ -125,7 +126,7 @@ fn value_to_string(v: &Value) -> String {
 // Table output
 // ---------------------------------------------------------------------------
 
-fn render_table(results: &[Value], no_color: bool, results_url: &str) {
+fn render_table(results: &[Value], no_color: bool, results_url: &str, writer: &mut dyn Write) {
     for result in results {
         let observable = result
             .get("observable")
@@ -136,21 +137,22 @@ fn render_table(results: &[Value], no_color: bool, results_url: &str) {
             .and_then(|v| v.as_str())
             .unwrap_or("?");
 
-        println!();
+        writeln!(writer).ok();
         if no_color {
-            println!("Observable: {}  [{}]", observable, obs_type);
+            writeln!(writer, "Observable: {}  [{}]", observable, obs_type).ok();
         } else {
-            println!(
+            writeln!(
+                writer,
                 "Observable: {}  [{}]",
                 observable.bold().white(),
                 obs_type.cyan()
-            );
+            ).ok();
         }
-        println!("{}", "─".repeat(72));
+        writeln!(writer, "{}", "─".repeat(72)).ok();
 
         let engine_results = collect_engine_rows(result);
         if engine_results.is_empty() {
-            println!("  (no engine results)");
+            writeln!(writer, "  (no engine results)").ok();
             continue;
         }
 
@@ -180,16 +182,16 @@ fn render_table(results: &[Value], no_color: bool, results_url: &str) {
             table.add_row(vec![engine_cell, summary_cell]);
         }
 
-        println!("{table}");
+        writeln!(writer, "{table}").ok();
     }
 
     // Footer: link to the full results page on the server.
-    println!();
-    println!("{}", "─".repeat(72));
+    writeln!(writer).ok();
+    writeln!(writer, "{}", "─".repeat(72)).ok();
     if no_color {
-        println!("Results URL: {}", results_url);
+        writeln!(writer, "Results URL: {}", results_url).ok();
     } else {
-        println!("Results URL: {}", results_url.cyan());
+        writeln!(writer, "Results URL: {}", results_url.cyan()).ok();
     }
 }
 
