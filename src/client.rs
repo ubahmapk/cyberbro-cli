@@ -136,7 +136,7 @@ impl CyberbroClient {
     ) -> Result<AnalysisOutcome> {
         let submission = self.submit(text, engines, ignore_cache).await?;
         let analysis_id = submission.analysis_id.clone();
-        let results_url = submission.link.clone();
+        let results_url = format!("{}{}", self.base_url.trim_end_matches('/'), submission.link);
 
         let deadline = std::time::Instant::now()
             + std::time::Duration::from_secs(timeout_secs);
